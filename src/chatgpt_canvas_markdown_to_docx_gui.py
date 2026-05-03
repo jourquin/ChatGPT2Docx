@@ -3,7 +3,7 @@
 ChatGPT Canvas Markdown -> Markdown / DOCX GUI
 
 This app is designed for Markdown copied from ChatGPT Canvas or saved from Canvas.
-Version 3 makes math normalization idempotent, so already-normalized $...$ math is not corrupted by a second pass.
+This version 3 makes math normalization idempotent, so already-normalized $...$ math is not corrupted by a second pass.
 It can optionally normalize the common Canvas-copy math form:
 
     [
