@@ -39,7 +39,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 
-APP_TITLE = "ChatGPT Canvas Markdown to DOCX v3"
+APP_TITLE = "ChatGPT Canvas Markdown to DOCX"
 
 PANDOC_FORMAT = "markdown+tex_math_dollars+tex_math_single_backslash"
 
