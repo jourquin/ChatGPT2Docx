@@ -1,19 +1,66 @@
-# ChatGPT Canvas Markdown to DOCX GUI
+# ChatGPT Markdown to DOCX/LaTeX GUI
 
-A small Python/Tkinter desktop application for converting Markdown copied from **ChatGPT Canvas** into:
+A small Python/Tkinter desktop application that converts Markdown copied from ChatGPT into clean export files.
 
-- a normalized Markdown `.md` file; and/or
-- a Word `.docx` file generated with Pandoc.
+It is especially useful when a ChatGPT answer contains **LaTeX-style mathematical formulas** that look correct on screen but lose their delimiters when copied.
 
-The app is designed for users who write technical or academic text in ChatGPT Canvas and want to preserve Markdown structure and LaTeX-style mathematical formulas when exporting to Word.
+The app can:
+
+- paste or load Markdown;
+- normalize common ChatGPT/Canvas-copy math glitches;
+- save corrected Markdown as `.md`;
+- export directly to Word `.docx` through Pandoc;
+- export to standalone LaTeX `.tex` through Pandoc;
+- optionally shade fenced code blocks in DOCX and LaTeX outputs;
+- remember your Pandoc path, `reference.docx` path, and checkbox preferences between sessions;
+- run on macOS, Windows, and Linux, provided Python/Tkinter and Pandoc are installed.
 
 ---
 
 ## Why this tool exists
 
-Markdown copied from a rendered ChatGPT answer or from Canvas may not always contain math delimiters in a form that Pandoc recognizes directly.
+ChatGPT can display formulas beautifully in the browser, but the text copied with the regular **Copy** button is not always valid Markdown math.
 
-For example, Canvas-copied display math can sometimes appear as:
+For example, a rendered formula may be copied as:
+
+```markdown
+[
+P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
+]
+```
+
+or even as a standalone line:
+
+```markdown
+P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
+```
+
+Pandoc does not automatically know that these are display equations. It expects explicit math delimiters such as:
+
+```markdown
+$$
+P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
+$$
+```
+
+This app provides a practical normalization step before exporting.
+
+---
+
+## Features
+
+### Markdown input
+
+- Paste Markdown from the clipboard.
+- Load a `.md` file.
+- Edit the content in a simple text area.
+- Save the current content as `.md`.
+
+### Math normalization
+
+When enabled, the app attempts to repair common copy artifacts from ChatGPT and ChatGPT Canvas.
+
+It can convert bare bracket display math:
 
 ```markdown
 [
@@ -21,7 +68,7 @@ D(q^*) = C'(q^*)
 ]
 ```
 
-Pandoc does **not** treat bare `[` and `]` as display-math delimiters. It expects something like:
+into:
 
 ```markdown
 $$
@@ -29,51 +76,122 @@ D(q^*) = C'(q^*)
 $$
 ```
 
-or:
+It can also convert standalone TeX-looking formula lines:
 
 ```markdown
-\[
-D(q^*) = C'(q^*)
-\]
+P_i = \frac{\exp(V_i)}{\sum_j \text{avail}_j \exp(V_j)}
 ```
 
-The GUI can optionally normalize these Canvas-copy math blocks before saving or exporting.
-
-It can also convert simple inline math copied as plain parentheses, such as:
+into:
 
 ```markdown
-(q), (p), (D(q)), (C'(q)), (\beta)
+$$
+P_i = \frac{\exp(V_i)}{\sum_j \text{avail}_j \exp(V_j)}
+$$
 ```
 
-into Pandoc-compatible inline math:
+It can convert simple inline math copied with parentheses:
 
 ```markdown
-$q$, $p$, $D(q)$, $C'(q)$, $\beta$
+Here, (P_i) is the probability, (x_i) is a vector, and (\beta) is estimated.
 ```
 
----
+into:
 
-## Features
+```markdown
+Here, $P_i$ is the probability, $x_i$ is a vector, and $\beta$ is estimated.
+```
 
-- Paste Markdown directly from ChatGPT Canvas.
-- Open an existing `.md` file.
-- Save the current content as Markdown.
-- Export the content directly to `.docx` using Pandoc.
-- Optional normalization of Canvas-copied math syntax.
-- Idempotent normalization: running normalization more than once should not corrupt existing `$...$` math.
-- Automatic Pandoc detection on common macOS Homebrew paths:
-  - `/opt/homebrew/bin/pandoc`
-  - `/usr/local/bin/pandoc`
-- Manual Pandoc executable selection.
-- Optional Pandoc `reference.docx` support for custom Word styles.
+It also handles bullet-only formulas such as:
+
+```markdown
+* ( P_i = \frac{\exp(V_i)}{\sum_j \text{avail}_j \exp(V_j)} )
+```
+
+by turning them into display equations.
+
+### Code protection
+
+The normalizer protects:
+
+- fenced code blocks;
+- inline code spans such as `` `models.logit(V, av, i)` ``.
+
+This avoids converting Python function calls or code parentheses into math.
+
+### DOCX export
+
+The app exports to `.docx` using Pandoc.
+
+Conceptually, it runs:
+
+```bash
+pandoc -f markdown+tex_math_dollars+tex_math_single_backslash input.md -o output.docx
+```
+
+It can also use an optional Pandoc `reference.docx` file to control Word styles.
+
+### LaTeX export
+
+The app can export the same normalized Markdown to a standalone `.tex` file.
+
+Conceptually, it runs:
+
+```bash
+pandoc -f markdown+tex_math_dollars+tex_math_single_backslash \
+  -t latex \
+  -s input.md \
+  -o output.tex
+```
+
+### Code-block shading
+
+The option **Shade code blocks (DOCX/LaTeX)** applies to both export formats.
+
+For DOCX, the app post-processes Pandoc’s generated `.docx` and adds a light gray background to paragraphs using the `SourceCode` style.
+
+For LaTeX, the app adds:
+
+```bash
+--highlight-style=tango
+```
+
+This makes Pandoc generate shaded environments for fenced code blocks, so code appears with a light background when the `.tex` file is compiled to PDF.
+
+Code shading works best when fenced code blocks include a language name:
+
+````markdown
+```python
+df['avail1'] = df['cost1'].notna().astype(int)
+```
+````
+
+### Saved preferences
+
+The app remembers your settings between sessions:
+
+- Pandoc executable path;
+- `reference.docx` path;
+- **Normalize ChatGPT/Canvas copy math** checkbox state;
+- **Shade code blocks (DOCX/LaTeX)** checkbox state.
+
+The preferences are saved when the app closes. The Pandoc and `reference.docx` paths are also saved immediately when you choose or clear them.
+
+Settings are stored in a small JSON file:
+
+| Platform | Settings file |
+|---|---|
+| macOS | `~/Library/Application Support/ChatGPT2Docx/settings.json` |
+| Windows | `%APPDATA%\ChatGPT2Docx\settings.json` |
+| Linux | `~/.config/ChatGPT2Docx/settings.json` |
 
 ---
 
 ## Requirements
 
-### 1. Python 3
+### Python 3
 
-The application uses Python 3 and the standard `tkinter` GUI library.
+The app is written in Python and uses the standard `tkinter` GUI toolkit.
 
 Check your Python version:
 
@@ -81,21 +199,39 @@ Check your Python version:
 python3 --version
 ```
 
-### 2. Tkinter
+or on Windows:
+
+```powershell
+py -3 --version
+```
+
+### Tkinter
 
 Tkinter is included with many Python installations.
 
-On macOS, the Python installer from python.org usually includes Tkinter. Homebrew Python may also work, depending on your setup.
+On macOS, the Python installer from python.org usually includes Tkinter. On Windows, the Python installer from python.org normally includes Tkinter as well.
 
-On Debian/Ubuntu Linux, you may need:
+On Debian/Ubuntu, you may need:
 
 ```bash
 sudo apt install python3-tk
 ```
 
-### 3. Pandoc
+On Fedora:
 
-Pandoc must be installed to export `.docx` files.
+```bash
+sudo dnf install python3-tkinter
+```
+
+On Arch Linux:
+
+```bash
+sudo pacman -S tk
+```
+
+### Pandoc
+
+Pandoc is required for `.docx` and `.tex` export.
 
 Check whether Pandoc is available:
 
@@ -109,286 +245,300 @@ On macOS with Homebrew:
 brew install pandoc
 ```
 
-On Windows, install Pandoc from the official installer and make sure it is available on your system `PATH`.
-
----
-
-## Installation
-
-Clone or download this repository, then place the script somewhere convenient:
+On Debian/Ubuntu:
 
 ```bash
-git clone https://github.com/YOUR-USER/YOUR-REPO.git
-cd YOUR-REPO
+sudo apt install pandoc
 ```
 
-Or simply download the Python file:
+On Windows, install Pandoc from the official installer or a package manager, then use **Choose Pandoc…** in the app if it is not detected automatically.
+
+The app automatically checks common locations:
 
 ```text
-chatgpt_canvas_markdown_to_docx_gui_v3.py
+macOS:
+  /opt/homebrew/bin/pandoc
+  /usr/local/bin/pandoc
+
+Windows:
+  C:\Program Files\Pandoc\pandoc.exe
+  C:\Program Files (x86)\Pandoc\pandoc.exe
+
+Linux:
+  /usr/bin/pandoc
+  /usr/local/bin/pandoc
+  /snap/bin/pandoc
+  /opt/pandoc/bin/pandoc
 ```
 
-No extra Python packages are required.
+You can always manually select the Pandoc executable from the GUI.
 
 ---
 
 ## Running the app
 
+### macOS and Linux
+
 From a terminal:
 
 ```bash
-python3 chatgpt_canvas_markdown_to_docx_gui.py
+python3 chatgpt_markdown_to_docx_gui.py
 ```
 
-If your system uses `python` instead of `python3`:
+### Windows
 
-```bash
-python chatgpt_canvas_markdown_to_docx_gui.py
+From PowerShell or Command Prompt:
+
+```powershell
+py -3 chatgpt_markdown_to_docx_gui.py
+```
+
+or, if Python is directly on your `PATH`:
+
+```powershell
+python chatgpt_markdown_to_docx_gui.py
 ```
 
 ---
 
 ## Basic workflow
 
-1. Open ChatGPT Canvas.
-2. Copy the Canvas Markdown content.
-3. Launch the GUI.
-4. Paste the Markdown into the text area.
-5. Leave **Normalize Canvas-copy math before saving/exporting** enabled if the copied text contains formulas like:
-
-   ```markdown
-   [
-   E = mc^2
-   ]
-   ```
-
-6. Click **Save .md** to save normalized Markdown.
-7. Click **Export .docx** to generate a Word document through Pandoc.
+1. Copy a ChatGPT answer or ChatGPT Canvas content.
+2. Launch the app.
+3. Click **Paste**, or load an existing `.md` file with **Load .md…**.
+4. Keep **Normalize ChatGPT/Canvas copy math** enabled if the copied text contains formula artifacts.
+5. Optionally click **Normalize preview** to inspect the corrected Markdown.
+6. Click **Save .md…** to save normalized Markdown.
+7. Click **Export .docx…** to create a Word document.
+8. Click **Export .tex…** to create a standalone LaTeX file.
 
 ---
 
-## Pandoc conversion used by the app
+## GUI controls
 
-The app exports DOCX using Pandoc with this input format:
+### Main buttons
 
-```text
-markdown+tex_math_dollars+tex_math_single_backslash
-```
+| Button | Purpose |
+|---|---|
+| **Load .md…** | Open an existing Markdown file. |
+| **Paste** | Paste clipboard content into the editor. |
+| **Clear** | Clear the editor. |
+| **Normalize preview** | Replace the editor content with normalized Markdown so you can inspect it. |
+| **Save .md…** | Save the current content as Markdown. |
+| **Export .docx…** | Export to Word through Pandoc. |
+| **Export .tex…** | Export to standalone LaTeX through Pandoc. |
 
-Conceptually, the command is equivalent to:
+### Options
 
-```bash
-pandoc -f markdown+tex_math_dollars+tex_math_single_backslash input.md -o output.docx
-```
+| Option | Purpose |
+|---|---|
+| **Normalize ChatGPT/Canvas copy math** | Repairs common copied-math patterns before saving/exporting. |
+| **Shade code blocks (DOCX/LaTeX)** | Adds light background shading to fenced code blocks in DOCX and LaTeX outputs. |
 
-This allows Pandoc to recognize both dollar-style math:
+### Pandoc and reference DOCX controls
 
-```markdown
-Inline math: $P_i$
-
-Display math:
-
-$$
-P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
-$$
-```
-
-and single-backslash LaTeX delimiters:
-
-```markdown
-Inline math: \(P_i\)
-
-Display math:
-
-\[
-P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
-\]
-```
+| Control | Purpose |
+|---|---|
+| **Pandoc:** path field | Shows the Pandoc executable currently used by the app. |
+| **Choose Pandoc…** | Manually select the Pandoc executable. |
+| **Reference .docx:** path field | Shows the selected Word style template, if any. |
+| **Choose reference.docx…** | Select a Word style template for DOCX export. |
+| **Clear reference** | Remove the selected reference DOCX. |
 
 ---
 
 ## Using a reference DOCX
 
-Pandoc can use a `reference.docx` file to control the formatting of the generated Word document.
+A Pandoc `reference.docx` is a Word file that controls the styling of the generated `.docx`.
 
-A reference DOCX does **not** provide content. It provides Word styles, such as:
+It does **not** provide content. It provides styles such as:
 
-- `Normal`
-- `Heading 1`
-- `Heading 2`
-- table styles
-- bullet and numbered list styles
-- margins
-- fonts
-- line spacing
+- `Normal`;
+- `Heading 1`;
+- `Heading 2`;
+- list styles;
+- table styles;
+- code styles;
+- page margins;
+- fonts.
 
-To generate Pandoc's default reference file:
+You can generate Pandoc’s default reference file with:
 
 ```bash
 pandoc --print-default-data-file reference.docx > reference.docx
 ```
 
-Open `reference.docx` in Microsoft Word, modify the styles, save it, and then select it in the GUI before exporting.
+Then open it in Word, modify the styles, save it, and select it in the app with **Choose reference.docx…**.
 
-The export is then conceptually equivalent to:
+The selected reference path is displayed in the GUI and restored when the app launches. If the saved reference file no longer exists, the app warns you at DOCX export time and ignores the missing reference file.
 
-```bash
-pandoc input.md --reference-doc=reference.docx -o output.docx
-```
+The reference DOCX applies only to `.docx` export, not `.tex` export.
 
 ---
 
-## What the normalization does
+## Examples
 
-When enabled, the normalization step converts common Canvas-copy math forms into Pandoc-compatible math.
+### Example 1: copied display formula
 
-### Display math
-
-Input:
+Input copied from ChatGPT:
 
 ```markdown
 [
-B(q)=\int_0^q D(x)\,dx
+V_i = \beta^\top x_i
 ]
 ```
 
-Output:
+Normalized output:
 
 ```markdown
 $$
-B(q)=\int_0^q D(x)\,dx
+V_i = \beta^\top x_i
 $$
 ```
 
-### Inline math
+### Example 2: copied standalone formula line
 
 Input:
-
-```markdown
-The optimal traffic level is (q^*) and the price is (p^*).
-```
-
-Output:
-
-```markdown
-The optimal traffic level is $q^*$ and the price is $p^*$.
-```
-
-Input:
-
-```markdown
-The inverse demand is (D(q)) and marginal cost is (C'(q)).
-```
-
-Output:
-
-```markdown
-The inverse demand is $D(q)$ and marginal cost is $C'(q)$.
-```
-
----
-
-## What the normalization does not do
-
-The app does **not** reconstruct formulas whose content has already been lost.
-
-For example, if a failed copy/export produced:
-
-```text
-P_i =
-```
-
-instead of:
 
 ```markdown
 P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
 ```
 
-then the app cannot infer the missing formula. It only adds correct Markdown math delimiters around math-like content that is still present.
+Normalized output:
 
-The normalization is intentionally conservative. Some unusual mathematical expressions may need manual adjustment.
-
----
-
-## Recommended prompts for ChatGPT
-
-For best results, ask ChatGPT to write documents in Canvas using explicit Pandoc-friendly math delimiters.
-
-Example prompt:
-
-```text
-Write this in a Canvas as Markdown. Use $...$ for inline math and $$...$$ for display math so that the saved Markdown can be converted locally with Pandoc to DOCX.
+```markdown
+$$
+P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
+$$
 ```
 
-Or:
+### Example 3: copied inline variables
 
-```text
-Write this in a Canvas as Markdown. Use \(...\) for inline math and \[...\] for display math so that Pandoc can convert it to DOCX.
+Input:
+
+```markdown
+Here, (P_i) is the probability of choosing alternative (i).
 ```
 
-If you are copying from a normal rendered ChatGPT answer rather than Canvas, ask for raw Markdown in a fenced code block:
+Normalized output:
 
-```text
-Give me the answer as raw Markdown in a fenced code block. Use $...$ for inline math and $$...$$ for display math. Do not render the equations.
+```markdown
+Here, $P_i$ is the probability of choosing alternative $i$.
 ```
 
----
+### Example 4: code is protected
 
-## Troubleshooting
+Input:
 
-### The app cannot find Pandoc
-
-If Pandoc works in your terminal but not in the GUI, it may be a `PATH` issue, especially on macOS.
-
-Check where Pandoc is installed:
-
-```bash
-which pandoc
+```markdown
+The model is computed with `models.logit(V, av, i)`.
 ```
 
-Common locations are:
+Output remains:
 
-```text
-/opt/homebrew/bin/pandoc
-/usr/local/bin/pandoc
+```markdown
+The model is computed with `models.logit(V, av, i)`.
 ```
-
-The app checks those paths automatically. If it still does not find Pandoc, use the GUI button to manually choose the Pandoc executable.
-
-You can also launch the app from the terminal with:
-
-```bash
-PANDOC_PATH=/opt/homebrew/bin/pandoc python3 chatgpt_canvas_markdown_to_docx_gui_v3.py
-```
-
-### The DOCX still shows raw dollar signs
-
-This usually means one of the following:
-
-- the Markdown was already partially corrupted before import;
-- math delimiters were nested incorrectly;
-- normalization was disabled even though Canvas-copy math needed it;
-- an expression was too unusual for the conservative normalizer.
-
-Try saving the normalized Markdown first, inspect the `.md`, then export again.
-
-### The DOCX has equations, but the formatting is not what I want
-
-Use a Pandoc `reference.docx` file and customize Word styles such as `Normal`, `Heading 1`, and `Heading 2`.
-
-### Accented characters are wrong
-
-Make sure the Markdown file is saved as UTF-8.
 
 ---
 
 ## Limitations
 
-- The app focuses on Markdown-to-DOCX conversion through Pandoc.
-- It is not a full Markdown editor.
-- It does not preview rendered Markdown or rendered equations.
-- It does not repair formulas whose TeX content has already been deleted.
-- The inline math normalization is heuristic and may require manual correction in complex cases.
+This is a heuristic normalizer, not a full mathematical parser.
+
+It can fix many common copy artifacts when the TeX content is still present. It cannot recover formulas if the copy process has already deleted the formula content.
+
+For maximum reliability, ask ChatGPT to produce raw Markdown in a fenced code block:
+
+```text
+Give the answer as raw Markdown in a fenced code block. Use $...$ for inline math and $$...$$ for display math.
+```
+
+For long documents, ChatGPT Canvas plus this tool is usually more comfortable: you can visually inspect formulas in Canvas and then normalize/export locally.
+
+---
+
+## Troubleshooting
+
+### Pandoc works in Terminal, but the app does not find it
+
+This often happens on macOS because GUI-launched Python apps do not always inherit the same shell `PATH` as Terminal.
+
+Use **Choose Pandoc…** and select the executable manually, for example:
+
+```text
+/opt/homebrew/bin/pandoc
+```
+
+On Windows, select:
+
+```text
+C:\Program Files\Pandoc\pandoc.exe
+```
+
+if that is where Pandoc is installed.
+
+### The app does not start on Linux because Tkinter is missing
+
+Install the Tkinter package for your distribution. For Debian/Ubuntu:
+
+```bash
+sudo apt install python3-tk
+```
+
+### The app starts, but export fails
+
+Check that the path shown in the **Pandoc:** field points to a valid Pandoc executable. You can also click **Choose Pandoc…** and select it manually.
+
+### The wrong Pandoc or reference DOCX path keeps coming back
+
+The app restores its saved preferences at launch. To reset them, close the app and delete the settings file:
+
+| Platform | File to delete |
+|---|---|
+| macOS | `~/Library/Application Support/ChatGPT2Docx/settings.json` |
+| Windows | `%APPDATA%\ChatGPT2Docx\settings.json` |
+| Linux | `~/.config/ChatGPT2Docx/settings.json` |
+
+### The DOCX contains visible `$$`
+
+This usually means the Markdown was normalized twice by an older version, or the input contains malformed delimiters. Use v5.3 or later and try starting again from the original copied text.
+
+### Some formulas still do not render
+
+Check the normalized Markdown with **Normalize preview**. The formula should be surrounded by either:
+
+```markdown
+$$
+...
+$$
+```
+
+or:
+
+```markdown
+\[
+...
+\]
+```
+
+If the formula content itself has disappeared, the tool cannot reconstruct it.
+
+### Code blocks are not shaded in DOCX
+
+Make sure **Shade code blocks (DOCX/LaTeX)** is enabled. Also prefer fenced code blocks:
+
+````markdown
+```python
+print("hello")
+```
+````
+
+instead of indented code blocks or plain paragraphs.
+
+### Code blocks are not shaded in LaTeX/PDF
+
+The `.tex` export uses Pandoc highlighting style `tango` when shading is enabled. To see the background, compile the `.tex` file to PDF with a normal LaTeX engine such as `pdflatex`, `xelatex`, or `lualatex`.
 
 ---
 
@@ -396,20 +546,9 @@ Make sure the Markdown file is saved as UTF-8.
 
 This script was developed with help from ChatGPT itself, which feels a bit like asking a photocopier to design a better photocopier. The goal was simple: take Markdown copied from ChatGPT Canvas, stop mathematical formulas from escaping into the wilderness, and produce a cleaner path to Word documents via Pandoc.
 
-ChatGPT helped sketch the first version, debug the macOS Pandoc path issue, improve the math-normalization logic, and document the workflow. Human supervision, testing, and common sense were still required, especially when the early versions cheerfully produced artifacts such as `q$$`.
+ChatGPT helped sketch the first version, debug the macOS Pandoc path issue, improve the math-normalization logic, add DOCX and LaTeX export options, support code-block shading, and document the workflow. Human supervision, testing, and common sense were still required, especially when the early versions cheerfully produced artifacts such as `q$$`.
 
 In other words: this is a small tool made by a human, with assistance from an AI, to solve a problem created by copying text from an AI. Perfectly normal modern software development.
-
-## Suggested file names
-
-For clarity, a typical project can use:
-
-```text
-input.md                 # original Markdown copied or saved from Canvas
-input_normalized.md      # Markdown after normalization
-output.docx              # Word document exported with Pandoc
-reference.docx           # optional Word style template
-```
 
 ---
 
@@ -417,7 +556,4 @@ reference.docx           # optional Word style template
 
 This project is released under the **MIT License**.
 
-You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, provided that the MIT License notice is included in copies or substantial portions of the software.
-
-
-
+See the [`LICENSE`](LICENSE) file for details.
