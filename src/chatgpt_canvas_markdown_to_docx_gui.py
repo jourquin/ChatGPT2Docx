@@ -2,8 +2,8 @@
 """
 ChatGPT Canvas Markdown -> Markdown / DOCX / LaTeX GUI
 
-This app is designed for Markdown copied from ChatGPT Canvas or saved from Canvas.
-Version 5.5 keeps the improved toolbar/options layout, adds LaTeX .tex export, supports optional code-block shading for both DOCX and LaTeX exports, persists user preferences between launches, and displays both the Pandoc executable path and the reference .docx path in the GUI.
+This app is designed for Markdown copied from ChatGPT, ChatGPT Canvas or saved from Canvas.
+
 It can optionally normalize the common Canvas-copy math form:
 
     [
@@ -44,7 +44,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 
-APP_TITLE = "ChatGPT Markdown to DOCX/LaTeX v5.5"
+APP_TITLE = "ChatGPT Markdown to DOCX/LaTeX v5.7"
 
 PANDOC_FORMAT = "markdown+tex_math_dollars+tex_math_single_backslash"
 
@@ -182,7 +182,7 @@ def normalize_bare_bracket_display_math(text: str) -> str:
                 body_text = "\n".join(body).strip()
                 if looks_like_math(body_text):
                     out.append("$$")
-                    out.extend(body)
+                    out.extend(normalize_plain_formula_terms(line) for line in body)
                     out.append("$$")
                     i = j + 1
                     continue
@@ -191,7 +191,7 @@ def normalize_bare_bracket_display_math(text: str) -> str:
         m = re.fullmatch(r"\s*\[\s*(.+?)\s*\]\s*", line)
         if m and looks_like_math(m.group(1)):
             out.append("$$")
-            out.append(m.group(1))
+            out.append(normalize_plain_formula_terms(m.group(1)))
             out.append("$$")
             i += 1
             continue
@@ -444,13 +444,32 @@ def normalize_exp_variables(expr: str) -> str:
 
 
 def normalize_plain_formula_terms(expr: str) -> str:
-    """Improve a few plain-word terms inside recovered formulas.
+    r"""Improve copied formula fragments before Pandoc sees them.
 
-    Rendered ChatGPT copy sometimes gives formulas such as ``avail_j`` instead
-    of the richer raw-Markdown ``\text{avail}_j``. This function only handles a
-    short allow-list to avoid rewriting legitimate mathematical symbols.
+    Rendered ChatGPT/Canvas copy can degrade some TeX constructs.  In
+    particular, underscores in subscripts may appear as Markdown-like asterisks:
+
+        \hat{q}*{i,m}   ->   \hat{q}_{i,m}
+        B^{%}*m         ->   B^{\%}_m
+
+    This function only runs on text that has already been classified as formula
+    content, not on ordinary prose or code blocks.
     """
     s = expr
+
+    # Pandoc's math parser treats an unescaped percent as the start of a TeX
+    # comment and may then leave the entire display equation as literal $$...$$.
+    # Escape bare percentages inside recovered formulas: B^{%} -> B^{\%}.
+    s = re.sub(r"(?<!\\)%", r"\\%", s)
+
+    # ChatGPT copied/canvas math sometimes turns subscripts into asterisks.
+    # Repair the most common forms without touching spaced multiplication.
+    # Examples: q*{i,m} -> q_{i,m}; \hat{q}*{i,m} -> \hat{q}_{i,m}
+    s = re.sub(r"(?<=[A-Za-z0-9}\)])\*\{([^{}\n]+)\}", r"_{\1}", s)
+
+    # Example: B^{\%}*m -> B^{\%}_m.  Limit this to a preceding brace so that
+    # normal products such as x*y are not rewritten as subscripts.
+    s = re.sub(r"(?<=\})\*([A-Za-z][A-Za-z0-9]*)\b", r"_\1", s)
 
     # avail_j -> \text{avail}_j. Use a function replacement so backslashes are
     # preserved literally and are not interpreted as regex replacement escapes.

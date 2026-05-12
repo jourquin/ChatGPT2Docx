@@ -12,6 +12,7 @@ The app can:
 - export directly to Word `.docx` through Pandoc;
 - export to standalone LaTeX `.tex` through Pandoc;
 - optionally shade fenced code blocks in DOCX and LaTeX outputs;
+- repair additional formula-copy artifacts such as `\hat{q}*{i,m}` and `B^{%}*m`;
 - remember your Pandoc path, `reference.docx` path, and checkbox preferences between sessions;
 - run on macOS, Windows, and Linux, provided Python/Tkinter and Pandoc are installed.
 
@@ -35,7 +36,13 @@ or even as a standalone line:
 P_i = \frac{e^{V_i}}{\sum_{j \in C} e^{V_j}}
 ```
 
-Pandoc does not automatically know that these are display equations. It expects explicit math delimiters such as:
+Some Canvas copies can also degrade subscripts or percent signs inside formulas, for example:
+
+```markdown
+B_m=\sum_i(\hat{q}*{i,m}-q*{i,m}), \qquad B^{%}*m=...
+```
+
+Pandoc does not automatically know that these are display equations or that `*{i,m}` was meant to be a subscript. It expects explicit math delimiters such as:
 
 ```markdown
 $$
@@ -109,6 +116,23 @@ It also handles bullet-only formulas such as:
 ```
 
 by turning them into display equations.
+
+The latest heuristic also repairs two common Canvas-copy artifacts inside recovered formulas:
+
+- copied subscripts written as `*{...}` instead of `_{...}`;
+- unescaped percent signs in math, such as `B^{%}`, which can break TeX parsing.
+
+For example:
+
+```markdown
+B_m=\sum_i(\hat{q}*{i,m}-q*{i,m}), \qquad B^{%}*m=...
+```
+
+becomes:
+
+```markdown
+B_m=\sum_i(\hat{q}_{i,m}-q_{i,m}), \qquad B^{\%}_m=...
+```
 
 ### Code protection
 
@@ -440,13 +464,33 @@ Output remains:
 The model is computed with `models.logit(V, av, i)`.
 ```
 
+### Example 5: copied subscripts and percent signs
+
+Some Canvas copies may turn subscripts into star patterns and leave percent signs unescaped:
+
+```markdown
+[
+B_m=\sum_i(\hat{q}*{i,m}-q*{i,m}), \qquad B^{%}*m=\frac{\sum_i(\hat{q}*{i,m}-q_{i,m})}{\sum_i q_{i,m}}.
+]
+```
+
+Normalized output:
+
+```markdown
+$$
+B_m=\sum_i(\hat{q}_{i,m}-q_{i,m}), \qquad B^{\%}_m=\frac{\sum_i(\hat{q}_{i,m}-q_{i,m})}{\sum_i q_{i,m}}.
+$$
+```
+
+This is important because an unescaped `%` in TeX math can make the rest of the formula behave like a comment, which may leave visible `$$` delimiters or prevent Word math conversion.
+
 ---
 
 ## Limitations
 
 This is a heuristic normalizer, not a full mathematical parser.
 
-It can fix many common copy artifacts when the TeX content is still present. It cannot recover formulas if the copy process has already deleted the formula content.
+It can fix many common copy artifacts when the TeX content is still present, including missing display delimiters, simple parenthesized inline math, bullet-only formulas, copied subscript patterns such as `*{i,m}`, and unescaped percent signs in recovered math. It cannot recover formulas if the copy process has already deleted the formula content.
 
 For maximum reliability, ask ChatGPT to produce raw Markdown in a fenced code block:
 
@@ -502,7 +546,7 @@ The app restores its saved preferences at launch. To reset them, close the app a
 
 ### The DOCX contains visible `$$`
 
-This usually means the Markdown was normalized twice by an older version, or the input contains malformed delimiters. Use v5.3 or later and try starting again from the original copied text.
+This usually means the Markdown was normalized twice by an older version, or the input contains malformed delimiters. Use v5.7 or later and try starting again from the original copied text.
 
 ### Some formulas still do not render
 
@@ -523,6 +567,17 @@ or:
 ```
 
 If the formula content itself has disappeared, the tool cannot reconstruct it.
+
+### A formula contains `*{...}` or a percent sign and still fails
+
+Use the latest version of the script and run **Normalize preview** again from the original copied text. The current heuristic repairs common cases such as:
+
+```markdown
+\hat{q}*{i,m} -> \hat{q}_{i,m}
+B^{%}*m -> B^{\%}_m
+```
+
+If the pattern is more complex, manually edit the normalized Markdown so subscripts use `_` and literal percent signs inside formulas are escaped as `\%`.
 
 ### Code blocks are not shaded in DOCX
 
@@ -546,7 +601,7 @@ The `.tex` export uses Pandoc highlighting style `tango` when shading is enabled
 
 This script was developed with help from ChatGPT itself, which feels a bit like asking a photocopier to design a better photocopier. The goal was simple: take Markdown copied from ChatGPT Canvas, stop mathematical formulas from escaping into the wilderness, and produce a cleaner path to Word documents via Pandoc.
 
-ChatGPT helped sketch the first version, debug the macOS Pandoc path issue, improve the math-normalization logic, add DOCX and LaTeX export options, support code-block shading, and document the workflow. Human supervision, testing, and common sense were still required, especially when the early versions cheerfully produced artifacts such as `q$$`.
+ChatGPT helped sketch the first version, debug the macOS Pandoc path issue, improve the math-normalization logic, add DOCX and LaTeX export options, support code-block shading, document the workflow, and refine oddball Canvas-copy cases such as `\hat{q}*{i,m}` and `B^{%}*m`. Human supervision, testing, and common sense were still required, especially when the early versions cheerfully produced artifacts such as `q$$`.
 
 In other words: this is a small tool made by a human, with assistance from an AI, to solve a problem created by copying text from an AI. Perfectly normal modern software development.
 
